@@ -116,7 +116,7 @@ const TelegramNotifier: React.FC = () => {
     const payload = { message, imageUrl, buttons };
 
     try {
-      const res = await fetch("http://localhost:3001/api/send-notification", {
+      const res = await fetch("https://ads-ixjc.onrender.com/api/send-notification", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
