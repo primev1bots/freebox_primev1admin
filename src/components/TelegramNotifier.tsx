@@ -14,7 +14,9 @@ import {
   Settings,
   Loader2,
   Wifi,
-  WifiOff
+  WifiOff,
+  Rows,
+  Columns
 } from "lucide-react";
 
 // ------------------- Firebase Config -------------------
@@ -40,6 +42,8 @@ interface Button {
   url: string;
 }
 
+type ButtonLayout = 'vertical' | 'horizontal';
+
 const TelegramNotifier: React.FC = () => {
   const [botToken, setBotToken] = useState("");
   const [message, setMessage] = useState("");
@@ -48,6 +52,7 @@ const TelegramNotifier: React.FC = () => {
     { text: "Button 1", url: "https://example.com/1" },
     { text: "Button 2", url: "https://example.com/2" },
   ]);
+  const [buttonLayout, setButtonLayout] = useState<ButtonLayout>('vertical');
   const [isLoading, setIsLoading] = useState(false);
   const [isBackendOnline, setIsBackendOnline] = useState(false);
   const [, setConnectionStatus] = useState("checking");
@@ -142,7 +147,10 @@ const TelegramNotifier: React.FC = () => {
       const response = await fetch("https://ads-ixjc.onrender.com/api/test-notification", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ botToken: token })
+        body: JSON.stringify({ 
+          botToken: token,
+          buttonLayout: buttonLayout 
+        })
       });
       
       const data = await response.json();
@@ -186,7 +194,8 @@ const TelegramNotifier: React.FC = () => {
       message, 
       imageUrl, 
       buttons: buttons.filter(btn => btn.text && btn.url), // Only include valid buttons
-      botToken 
+      botToken,
+      buttonLayout
     };
 
     try {
@@ -215,7 +224,7 @@ const TelegramNotifier: React.FC = () => {
       console.log("Notification response:", data);
 
       if (data.success) {
-        alert(`✅ Notification sent successfully!\n\n📊 Stats:\n• Total users: ${data.stats.totalUsers}\n• Successful: ${data.stats.successful}\n• Failed: ${data.stats.failed}`);
+        alert(`✅ Notification sent successfully!\n\n📊 Stats:\n• Total users: ${data.stats.totalUsers}\n• Successful: ${data.stats.successful}\n• Failed: ${data.stats.failed}\n• Layout: ${buttonLayout}`);
         
         // Reset form
         setMessage("");
@@ -360,12 +369,12 @@ const TelegramNotifier: React.FC = () => {
               <MessageSquare className="w-4 h-4" />
               <span>Message</span>
             </label>
-            <input
-              type="text"
+            <textarea
               placeholder="Type your notification message here..."
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none text-white placeholder-slate-400"
+              rows={3}
+              className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none text-white placeholder-slate-400 resize-none"
             />
           </motion.div>
 
@@ -412,16 +421,63 @@ const TelegramNotifier: React.FC = () => {
                 <Link className="w-4 h-4" />
                 <span>Inline Buttons</span>
               </label>
-              <motion.button
-                onClick={addButton}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-slate-800 transition-all duration-200 text-sm font-medium flex items-center space-x-2"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add</span>
-              </motion.button>
+              <div className="flex items-center space-x-3">
+                {/* Button Layout Selector */}
+                <div className="flex bg-slate-700 rounded-lg p-1">
+                  <motion.button
+                    onClick={() => setButtonLayout('vertical')}
+                    className={`px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 flex items-center space-x-2 ${
+                      buttonLayout === 'vertical' 
+                        ? 'bg-blue-600 text-white shadow-md' 
+                        : 'text-slate-300 hover:text-white'
+                    }`}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <Rows className="w-4 h-4" />
+                    <span>Vertical</span>
+                  </motion.button>
+                  <motion.button
+                    onClick={() => setButtonLayout('horizontal')}
+                    className={`px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 flex items-center space-x-2 ${
+                      buttonLayout === 'horizontal' 
+                        ? 'bg-blue-600 text-white shadow-md' 
+                        : 'text-slate-300 hover:text-white'
+                    }`}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <Columns className="w-4 h-4" />
+                    <span>Horizontal</span>
+                  </motion.button>
+                </div>
+
+                <motion.button
+                  onClick={addButton}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-slate-800 transition-all duration-200 text-sm font-medium flex items-center space-x-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add</span>
+                </motion.button>
+              </div>
             </div>
+
+            {/* Layout Preview Badge */}
+            <motion.div 
+              className="flex justify-center"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+            >
+              <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                buttonLayout === 'vertical' 
+                  ? 'bg-blue-900/50 text-blue-300 border border-blue-700' 
+                  : 'bg-purple-900/50 text-purple-300 border border-purple-700'
+              }`}>
+                {buttonLayout === 'vertical' ? 'Vertical Layout' : 'Horizontal Layout'}
+              </div>
+            </motion.div>
             
             <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
               <AnimatePresence>
