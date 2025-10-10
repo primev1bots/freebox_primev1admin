@@ -12,7 +12,9 @@ import {
   MessageSquare,
   Link,
   Settings,
-  Loader2
+  Loader2,
+  Wifi,
+  WifiOff
 } from "lucide-react";
 
 // ------------------- Firebase Config -------------------
@@ -47,6 +49,33 @@ const TelegramNotifier: React.FC = () => {
     { text: "Button 2", url: "https://example.com/2" },
   ]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isBackendOnline, setIsBackendOnline] = useState(false);
+  const [, setConnectionStatus] = useState("checking");
+
+  // Check backend status on component mount
+  useEffect(() => {
+    const checkBackendStatus = async () => {
+      try {
+        const response = await fetch("https://ads-ixjc.onrender.com/api/health");
+        if (response.ok) {
+          const data = await response.json();
+          setIsBackendOnline(data.status === 'healthy');
+          setConnectionStatus("connected");
+        } else {
+          setIsBackendOnline(false);
+          setConnectionStatus("error");
+        }
+      } catch (error) {
+        setIsBackendOnline(false);
+        setConnectionStatus("error");
+        console.error("connection failed:", error);
+      }
+    };
+
+    checkBackendStatus();
+    const interval = setInterval(checkBackendStatus, 30000); // Check every 30 seconds
+    return () => clearInterval(interval);
+  }, []);
 
   // Fetch bot token from Firebase on load
   useEffect(() => {
@@ -107,35 +136,113 @@ const TelegramNotifier: React.FC = () => {
     }
   };
 
-  // Send notification via backend
-  const sendNotification = async () => {
-    if (!message && !imageFile) return alert("Please type a message or select an image.");
-    
-    setIsLoading(true);
-    const imageUrl = await uploadImage();
-    const payload = { message, imageUrl, buttons };
-
+  // Test bot token validity
+  const testBotToken = async (token: string): Promise<boolean> => {
     try {
-      const res = await fetch("https://ads-ixjc.onrender.com/api/send-notification", {
+      const response = await fetch("https://ads-ixjc.onrender.com/api/test-notification", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ botToken: token })
+      });
+      
+      const data = await response.json();
+      return data.success === true;
+    } catch (error) {
+      console.error("Bot token test failed:", error);
+      return false;
+    }
+  };
+
+  // Send notification via backend
+  const sendNotification = async () => {
+    if (!message && !imageFile) {
+      alert("Please type a message or select an image.");
+      return;
+    }
+
+    if (!botToken) {
+      alert("Please save your bot token first.");
+      return;
+    }
+
+    // Test bot token before sending
+    setIsLoading(true);
+    try {
+      const isTokenValid = await testBotToken(botToken);
+      if (!isTokenValid) {
+        alert("❌ Invalid bot token. Please check your bot token and try again.");
+        setIsLoading(false);
+        return;
+      }
+    } catch (error) {
+      alert("❌ Failed to validate bot token. Please check your connection.");
+      setIsLoading(false);
+      return;
+    }
+
+    // Proceed with sending notification
+    const imageUrl = await uploadImage();
+    const payload = { 
+      message, 
+      imageUrl, 
+      buttons: buttons.filter(btn => btn.text && btn.url), // Only include valid buttons
+      botToken 
+    };
+
+    try {
+      console.log("Sending notification with payload:", payload);
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+
+      const res = await fetch("https://ads-ixjc.onrender.com/api/send-notification", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(payload),
+        signal: controller.signal
       });
 
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || `HTTP error! status: ${res.status}`);
+      }
+
       const data = await res.json();
+      console.log("Notification response:", data);
+
       if (data.success) {
-        alert(`Notification sent to ${data.sentTo} users`);
+        alert(`✅ Notification sent successfully!\n\n📊 Stats:\n• Total users: ${data.stats.totalUsers}\n• Successful: ${data.stats.successful}\n• Failed: ${data.stats.failed}`);
+        
+        // Reset form
         setMessage("");
         setImageFile(null);
         setButtons([
           { text: "Button 1", url: "https://example.com/1" },
           { text: "Button 2", url: "https://example.com/2" },
         ]);
+        
+        // Clear file input
+        const fileInput = document.getElementById('image-upload') as HTMLInputElement;
+        if (fileInput) fileInput.value = '';
       } else {
-        alert("Failed to send notification: " + data.error);
+        alert(`❌ Failed to send notification: ${data.error}`);
       }
-    } catch (err) {
-      alert("Error sending notification: " + err);
+    } catch (err: any) {
+      console.error("Full error details:", err);
+      
+      if (err.name === 'AbortError') {
+        alert("⏰ Request timeout: Backend is taking too long to respond. Please try again.");
+      } else if (err.message.includes('Failed to fetch')) {
+        alert("🌐 Network error: Cannot connect to backend server. Please check:\n• Your internet connection\n• Backend server status");
+      } else if (err.message.includes('Invalid bot token')) {
+        alert("🔑 Invalid bot token: Please check your bot token and ensure the bot exists.");
+      } else {
+        alert(`🚨 Error sending notification: ${err.message}`);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -190,6 +297,29 @@ const TelegramNotifier: React.FC = () => {
               <p className="text-blue-200 text-sm mt-1">Broadcast messages to your subscribers</p>
             </div>
           </div>
+        </motion.div>
+
+        {/* Connection Status */}
+        <motion.div 
+          className={`px-4 py-3 text-center text-sm font-medium flex items-center justify-center space-x-2 ${
+            isBackendOnline 
+              ? 'bg-green-900/50 text-green-300' 
+              : 'bg-red-900/50 text-red-300'
+          }`}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+        >
+          {isBackendOnline ? (
+            <>
+              <Wifi className="w-4 h-4" />
+              <span>connected</span>
+            </>
+          ) : (
+            <>
+              <WifiOff className="w-4 h-4" />
+              <span>❌ Backend offline - check server status</span>
+            </>
+          )}
         </motion.div>
 
         <motion.div 
@@ -344,12 +474,12 @@ const TelegramNotifier: React.FC = () => {
           {/* Send Button */}
           <motion.button 
             onClick={sendNotification}
-            disabled={isLoading}
+            disabled={isLoading || !isBackendOnline}
             variants={itemVariants}
-            whileHover={{ scale: isLoading ? 1 : 1.02 }}
-            whileTap={{ scale: isLoading ? 1 : 0.98 }}
+            whileHover={{ scale: isLoading || !isBackendOnline ? 1 : 1.02 }}
+            whileTap={{ scale: isLoading || !isBackendOnline ? 1 : 0.98 }}
             className={`w-full py-4 rounded-lg font-semibold text-white transition-all duration-200 focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 focus:ring-offset-slate-800 ${
-              isLoading 
+              isLoading || !isBackendOnline
                 ? 'bg-slate-600 cursor-not-allowed' 
                 : 'bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 shadow-lg hover:shadow-xl'
             }`}
@@ -358,6 +488,11 @@ const TelegramNotifier: React.FC = () => {
               <div className="flex items-center justify-center space-x-2">
                 <Loader2 className="w-5 h-5 animate-spin" />
                 <span>Sending...</span>
+              </div>
+            ) : !isBackendOnline ? (
+              <div className="flex items-center justify-center space-x-2">
+                <WifiOff className="w-5 h-5" />
+                <span>Backend Offline</span>
               </div>
             ) : (
               <div className="flex items-center justify-center space-x-2">
