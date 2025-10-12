@@ -35,44 +35,65 @@ const AdminPanel: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Initialize with default data if Firebase fails
   useEffect(() => {
     console.log('AdminPanel: Starting Firebase connection...');
     
-    try {
-      const configRef = ref(database, 'appConfig');
-      console.log('AdminPanel: Firebase ref created', configRef);
-      
-      const unsubscribe = onValue(configRef, (snapshot) => {
-        console.log('AdminPanel: Firebase data received', snapshot.val());
-        const data = snapshot.val();
-        if (data) {
-          setAppConfig({
-            logoUrl: data.logoUrl || "",
-            appName: data.appName || "",
-            sliderImages: data.sliderImages || [],
-            supportUrl: data.supportUrl || "",
-            tutorialVideoId: data.tutorialVideoId || ""
-          });
-        } else {
-          console.log('AdminPanel: No data found in Firebase, using defaults');
-        }
-        setLoading(false);
-        setError(null);
-      }, (error) => {
-        console.error('AdminPanel: Firebase read error:', error);
-        setError(`Firebase Error: ${error.message}`);
-        setLoading(false);
-      });
-
-      return () => {
-        console.log('AdminPanel: Cleaning up Firebase listener');
-        unsubscribe();
-      };
-    } catch (err) {
-      console.error('AdminPanel: Setup error:', err);
-      setError(`Setup Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    const configRef = ref(database, 'appConfig');
+    
+    const unsubscribe = onValue(configRef, (snapshot) => {
+      console.log('AdminPanel: Firebase data received', snapshot.val());
+      const data = snapshot.val();
+      if (data) {
+        setAppConfig({
+          logoUrl: data.logoUrl || "",
+          appName: data.appName || "PRIME V1",
+          sliderImages: data.sliderImages || [],
+          supportUrl: data.supportUrl || "",
+          tutorialVideoId: data.tutorialVideoId || ""
+        });
+      } else {
+        console.log('AdminPanel: No data found in Firebase, using defaults');
+        // Set default data
+        setAppConfig(prev => ({
+          ...prev,
+          appName: "PRIME V1"
+        }));
+      }
       setLoading(false);
-    }
+      setError(null);
+    }, (error) => {
+      console.error('AdminPanel: Firebase read error:', error);
+      setError(`Firebase Error: ${error.message}`);
+      
+      // Set default data even if Firebase fails
+      setAppConfig(prev => ({
+        ...prev,
+        appName: "PRIME V1",
+        logoUrl: "https://res.cloudinary.com/deu1ngeov/image/upload/v1758400527/slide3_lds1l1.jpg"
+      }));
+      setLoading(false);
+    });
+
+    // Set a timeout to handle cases where Firebase doesn't respond
+    const timeoutId = setTimeout(() => {
+      if (loading) {
+        console.log('AdminPanel: Firebase timeout, using defaults');
+        setError('Connection timeout. Using local data.');
+        setAppConfig(prev => ({
+          ...prev,
+          appName: "PRIME V1",
+          logoUrl: "https://res.cloudinary.com/deu1ngeov/image/upload/v1758400527/slide3_lds1l1.jpg"
+        }));
+        setLoading(false);
+      }
+    }, 10000);
+
+    return () => {
+      console.log('AdminPanel: Cleaning up Firebase listener');
+      unsubscribe();
+      clearTimeout(timeoutId);
+    };
   }, []);
 
   const uploadToCloudinary = async (file: File): Promise<string> => {
@@ -82,7 +103,6 @@ const AdminPanel: React.FC = () => {
     formData.append('file', file);
     formData.append('upload_preset', 'ml_default');
     formData.append('cloud_name', 'deu1ngeov');
-    formData.append('api_key', '872479185859578');
 
     try {
       const response = await fetch(
@@ -354,36 +374,18 @@ const AdminPanel: React.FC = () => {
     );
   }
 
-  // Error state
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gray-900 text-white p-6">
-        <div className="max-w-4xl mx-auto">
-          <h1 className="text-2xl font-bold text-red-400 mb-4">Error Loading Admin Panel</h1>
-          <div className="bg-red-500/20 border border-red-500 rounded-lg p-4 mb-4">
-            <p className="text-red-300">{error}</p>
-          </div>
-          <button
-            onClick={() => window.location.reload()}
-            className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded"
-          >
-            Reload Page
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
       <div className="max-w-6xl mx-auto">
         
-        {/* Debug Info */}
-        <div className="bg-yellow-500/20 border border-yellow-500 rounded-lg p-4 mb-6">
-          <p className="text-yellow-200 text-sm">
-            DB Connected: {database ? 'Yes' : 'No'}<br />
-          </p>
-        </div>
+        {/* Error Warning */}
+        {error && (
+          <div className="bg-yellow-500/20 border border-yellow-500 rounded-lg p-4 mb-6">
+            <p className="text-yellow-200 text-sm">
+              {error}
+            </p>
+          </div>
+        )}
 
         {/* Logo Upload Section */}
         <div className="bg-gray-800 rounded-lg p-6 mb-6">
@@ -442,7 +444,6 @@ const AdminPanel: React.FC = () => {
           </button>
         </div>
 
-        {/* Rest of your existing JSX remains the same */}
         {/* Slider Images Section */}
         <div className="bg-gray-800 rounded-lg p-6 mb-6">
           <div className="flex justify-between items-center mb-4">
