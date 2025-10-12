@@ -1,7 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { ref, set, onValue } from 'firebase/database';
-import { database } from '../firebase';
+import { initializeApp } from 'firebase/app';
+import { getDatabase, ref, set, onValue } from 'firebase/database';
 import { FaTrash, FaImages, FaArrowUp, FaArrowDown } from 'react-icons/fa';
+
+// Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyCH4vpSVmGkjcgC4KiS_7JkD-uuFQFOqyw",
+  authDomain: "freebox-primev1.firebaseapp.com",
+  databaseURL: "https://freebox-primev1-default-rtdb.firebaseio.com",
+  projectId: "freebox-primev1",
+  storageBucket: "freebox-primev1.firebasestorage.app",
+  messagingSenderId: "227315554911",
+  appId: "1:227315554911:web:bae79fadb6100170ae19ea",
+  measurementId: "G-3JZGRY5KGH"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const database = getDatabase(app);
 
 interface AppConfig {
   logoUrl: string;
@@ -55,6 +71,14 @@ const AdminPanel: React.FC = () => {
           });
         } else {
           console.log('AdminPanel: No data found in Firebase, using defaults');
+          // Initialize with empty data if no data exists
+          set(ref(database, 'appConfig'), {
+            logoUrl: "",
+            appName: "",
+            sliderImages: [],
+            supportUrl: "",
+            tutorialVideoId: ""
+          });
         }
         setLoading(false);
         setError(null);
@@ -82,7 +106,6 @@ const AdminPanel: React.FC = () => {
     formData.append('file', file);
     formData.append('upload_preset', 'ml_default');
     formData.append('cloud_name', 'deu1ngeov');
-    formData.append('api_key', '872479185859578');
 
     try {
       const response = await fetch(
@@ -362,6 +385,9 @@ const AdminPanel: React.FC = () => {
           <h1 className="text-2xl font-bold text-red-400 mb-4">Error Loading Admin Panel</h1>
           <div className="bg-red-500/20 border border-red-500 rounded-lg p-4 mb-4">
             <p className="text-red-300">{error}</p>
+            <p className="text-red-300 text-sm mt-2">
+              Please check your Firebase configuration and make sure you have proper read/write permissions.
+            </p>
           </div>
           <button
             onClick={() => window.location.reload()}
@@ -381,7 +407,9 @@ const AdminPanel: React.FC = () => {
         {/* Debug Info */}
         <div className="bg-yellow-500/20 border border-yellow-500 rounded-lg p-4 mb-6">
           <p className="text-yellow-200 text-sm">
-            DB Connected: {database ? 'Yes' : 'No'}<br />
+            Firebase Status: Connected<br />
+            Database: {firebaseConfig.databaseURL}<br />
+            Project: {firebaseConfig.projectId}
           </p>
         </div>
 
@@ -442,7 +470,6 @@ const AdminPanel: React.FC = () => {
           </button>
         </div>
 
-        {/* Rest of your existing JSX remains the same */}
         {/* Slider Images Section */}
         <div className="bg-gray-800 rounded-lg p-6 mb-6">
           <div className="flex justify-between items-center mb-4">
